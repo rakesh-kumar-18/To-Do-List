@@ -1,41 +1,66 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const date = require(__dirname + "/date.js");
+require("dotenv").config();
 
 const app = express();
-const items = [];
 
 app.set("view engine", "ejs");
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
+const userName = process.env.USER_NAME;
+const password = process.env.PASSWORD;
+
+const uri = "mongodb+srv://" + userName + ":" + password + "@cluster0.3q1zzrf.mongodb.net/?retryWrites=true&w=majority";
+
+mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+
+const itemsSchema = mongoose.Schema({
+    name: String
+});
+
+const Item = mongoose.model("Item", itemsSchema);
+
 app.get("/", function (req, res) {
 
     const day = date.getDate();
 
-    res.render("list", {
-        listTitle: day,
-        newListItems: items
+    Item.find({}).then(function (foundItems) {
+        res.render("list", { listTitle: day, newListItems: foundItems });
+    }).catch(function (error) {
+        console.log(error);
     });
 
 });
 
 app.post("/", function (req, res) {
-    let item = req.body.newItem;
-    if (item === "delete") {
-        items.pop();
-        res.redirect("/");
-    } else {
-        function titleCase(item) {
-            item = item.toLowerCase().split(' ');
-            for (var i = 0; i < item.length; i++) {
-                item[i] = item[i].charAt(0).toUpperCase() + item[i].slice(1);
-            }
-            return item.join(' ');
+    let itemName = req.body.newItem;
+
+    function titleCase(itemName) {
+        itemName = itemName.toLowerCase().split(' ');
+        for (var i = 0; i < itemName.length; i++) {
+            itemName[i] = itemName[i].charAt(0).toUpperCase() + itemName[i].slice(1);
         }
-        item = titleCase(item);
-        items.push(item);
-        res.redirect("/");
+        return itemName.join(' ');
     }
+    itemName = titleCase(itemName);
+
+    const item = new Item({
+        name: itemName
+    });
+
+    item.save().then(function () {
+        res.redirect("/");
+    });
+});
+
+app.post("/delete", function (req, res) {
+    const checkedItemId = req.body.checkbox;
+    Item.findByIdAndRemove(checkedItemId).then(function () {
+        console.log("Successfully deleted.");
+        res.redirect("/");
+    });
 });
 
 
